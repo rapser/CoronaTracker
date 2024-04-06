@@ -127,7 +127,7 @@ extension DataManager {
 			/// Data from Bing
 			if let regions = result.bing {
 				for region in regions where !region.subRegions.isEmpty {
-					if let regionCode = Locale.isoCode(from: region.name),
+					if let regionCode = Locale.isoCode(for: region.name),
 						let existingRegion = self.world.find(subRegionCode: regionCode),
 						existingRegion.subRegions.count < region.subRegions.count / 2 {
 						existingRegion.subRegions = region.subRegions
@@ -136,12 +136,12 @@ extension DataManager {
 			}
 
 			/// Data for Germany comes from a different source, so don't accumulate data
-			if let subRegions = result.rki, let region = self.world.find(subRegionCode: "DE") {
+			if let subRegions = result.rki, let region = self.world.find(subRegionCode: "DEU") {
 				region.subRegions = subRegions
 			}
 
 			/// Data for Austria comes from a different source, so don't accumulate data
-			if let austrianSubRegions = result.austria, let region = self.world.find(subRegionCode: "AT") {
+			if let austrianSubRegions = result.austria, let region = self.world.find(subRegionCode: "AUT") {
 				region.subRegions = austrianSubRegions
 			}
 
@@ -192,6 +192,26 @@ extension DataManager {
 		let sortedCountries: [Region] = countries.lazy.sorted().reversed()
 		for index in sortedCountries.indices {
 			sortedCountries[index].order = index
+		}
+	}
+
+	/// Fetches data from JHU and updates internal data models (`.world`).
+	/// Since widgets have a peak memory usage limitation of 30Mb, keep it as simple as possible.
+	/// - Parameter completion: Called after fetching data.
+	/// - Note: A future improvement would be to parse only the data the widget needs:
+	/// - Data only for the selected COUNTRY/WORLDWIDE (`subRegions` can be skipped);
+	/// - Statistics only for today and yesterday (to display the daily change in number of cases).
+	public func fetchWidgetsData(completion: @escaping (Bool) -> Void) {
+		JHUWebDataService.shared.fetchReports { regions, _ in
+			guard let regions = regions else {
+				completion(false)
+				return
+			}
+
+			JHURepoDataService.shared.fetchTimeSerieses { timeSeriesRegions, _ in
+				self.update(regions: regions, timeSeriesRegions: timeSeriesRegions)
+				completion(true)
+			}
 		}
 	}
 }
